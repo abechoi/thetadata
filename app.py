@@ -3,11 +3,17 @@ ThetaData Downloader — Streamlit UI
 Run with:  .venv/bin/streamlit run app.py --server.fileWatcherType none
 """
 
+import logging
 from pathlib import Path
 
 import streamlit as st
 
 import downloader as dl
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -75,7 +81,7 @@ with st.sidebar:
 
     st.subheader("Output directory")
     default_out    = str(Path.home() / "Projects" / "thetadata" / "data")
-    output_dir_str = st.text_input("", value=default_out)
+    output_dir_str = st.text_input("Path", value=default_out, label_visibility="collapsed")
     output_dir     = Path(output_dir_str)
 
 # ---------------------------------------------------------------------------
@@ -212,6 +218,9 @@ with col_download:
                         spike_threshold=spike_threshold,
                         force_fresh=force_fresh, progress_cb=cb)
 
+            except dl.PlanError as e:
+                label = task.replace("_", " ").title()
+                st.error(f"**{label}** — subscription required.  \n{e}")
             except Exception as e:
                 label = task.replace("_", " ").title()
                 st.warning(f"**{label}** failed: {e}")

@@ -17,6 +17,10 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 BASE_URL = "http://127.0.0.1:25503/v3"
+
+
+class PlanError(Exception):
+    """Raised when ThetaData returns 470 (endpoint not included in plan)."""
 REQUEST_DELAY = 0.15   # seconds between requests
 MAX_RETRIES = 4
 
@@ -61,16 +65,20 @@ def _get(endpoint: str, params: dict) -> Optional[pd.DataFrame]:
                 continue
 
             elif r.status_code in (404, 472, 473):
+                logger.debug("HTTP %s from %s — %s", r.status_code, url, r.text[:200])
                 return None
 
-            elif r.status_code == 470:
-                logger.error("Plan does not include this endpoint: %s", endpoint)
-                return None
+            elif r.status_code in (403, 470):
+                msg = f"Plan restriction (HTTP {r.status_code}) for {endpoint}: {r.text.strip()}"
+                logger.error(msg)
+                raise PlanError(msg)
 
             else:
                 logger.error("HTTP %s from %s: %s", r.status_code, url, r.text[:200])
                 return None
 
+        except PlanError:
+            raise
         except requests.exceptions.Timeout:
             logger.warning("Timeout on attempt %d — %s", attempt + 1, url)
         except Exception as exc:
