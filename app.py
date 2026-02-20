@@ -160,9 +160,12 @@ with col_download:
 
         def make_progress(label: str, total_tasks: int, task_index: int):
             def cb(current: int, total: int, step_label: str):
-                overall = (task_index + (current / max(total, 1))) / total_tasks
-                progress_bar.progress(min(overall, 1.0))
-                status_text.text(f"{label}: {step_label}  ({current}/{total})")
+                try:
+                    overall = (task_index + (current / max(total, 1))) / total_tasks
+                    progress_bar.progress(min(overall, 1.0))
+                    status_text.text(f"{label}: {step_label}  ({current}/{total})")
+                except Exception:
+                    pass
             return cb
 
         task_list = []
@@ -177,37 +180,41 @@ with col_download:
 
         for idx, task in enumerate(task_list):
             cb = make_progress(task.replace("_", " ").title(), n, idx)
+            try:
+                if task == "options_eod":
+                    results["Options EOD"] = dl.download_options_eod(
+                        symbol, year, output_dir, expirations,
+                        force_fresh=force_fresh, progress_cb=cb)
 
-            if task == "options_eod":
-                results["Options EOD"] = dl.download_options_eod(
-                    symbol, year, output_dir, expirations,
-                    force_fresh=force_fresh, progress_cb=cb)
+                elif task == "options_oi":
+                    results["Options Open Interest"] = dl.download_options_open_interest(
+                        symbol, year, output_dir, expirations,
+                        force_fresh=force_fresh, progress_cb=cb)
 
-            elif task == "options_oi":
-                results["Options Open Interest"] = dl.download_options_open_interest(
-                    symbol, year, output_dir, expirations,
-                    force_fresh=force_fresh, progress_cb=cb)
+                elif task == "options_trades":
+                    results["Options Trades"] = dl.download_options_trades(
+                        symbol, year, output_dir, expirations,
+                        force_fresh=force_fresh, progress_cb=cb)
 
-            elif task == "options_trades":
-                results["Options Trades"] = dl.download_options_trades(
-                    symbol, year, output_dir, expirations,
-                    force_fresh=force_fresh, progress_cb=cb)
+                elif task == "stock_eod":
+                    results["Stock EOD"] = dl.download_stock_eod(
+                        symbol, year, output_dir,
+                        force_fresh=force_fresh, progress_cb=cb)
 
-            elif task == "stock_eod":
-                results["Stock EOD"] = dl.download_stock_eod(
-                    symbol, year, output_dir,
-                    force_fresh=force_fresh, progress_cb=cb)
+                elif task == "stock_trades":
+                    results["Stock Trades"] = dl.download_stock_trades(
+                        symbol, year, output_dir,
+                        force_fresh=force_fresh, progress_cb=cb)
 
-            elif task == "stock_trades":
-                results["Stock Trades"] = dl.download_stock_trades(
-                    symbol, year, output_dir,
-                    force_fresh=force_fresh, progress_cb=cb)
+                elif task == "iv_spikes":
+                    results["IV Spikes"] = dl.download_iv_spikes(
+                        symbol, year, output_dir, expirations,
+                        spike_threshold=spike_threshold,
+                        force_fresh=force_fresh, progress_cb=cb)
 
-            elif task == "iv_spikes":
-                results["IV Spikes"] = dl.download_iv_spikes(
-                    symbol, year, output_dir, expirations,
-                    spike_threshold=spike_threshold,
-                    force_fresh=force_fresh, progress_cb=cb)
+            except Exception as e:
+                label = task.replace("_", " ").title()
+                st.warning(f"**{label}** failed: {e}")
 
         # ------------------------------------------------------------------
         # Summary
@@ -219,9 +226,10 @@ with col_download:
 
         for label, path in results.items():
             if path and path.exists():
-                size_mb = path.stat().st_size / 1_048_576
-                rows    = sum(1 for _ in open(path)) - 1
-                st.success(f"**{label}** → `{path}`  ({rows:,} rows, {size_mb:.1f} MB)")
+                size_bytes = path.stat().st_size
+                size_str   = f"{size_bytes / 1_073_741_824:.2f} GB" if size_bytes >= 1_073_741_824 else f"{size_bytes / 1_048_576:.1f} MB"
+                rows       = sum(1 for _ in open(path)) - 1
+                st.success(f"**{label}** → `{path}`  ({rows:,} rows, {size_str})")
 
                 if label == "IV Spikes":
                     import pandas as pd
@@ -233,8 +241,9 @@ with col_download:
         if dl_iv_spikes:
             raw_path = output_dir / symbol / str(year) / "iv_hourly.csv"
             if raw_path.exists():
-                size_mb = raw_path.stat().st_size / 1_048_576
-                st.info(f"Raw hourly IV saved to `{raw_path}` ({size_mb:.1f} MB)")
+                size_bytes = raw_path.stat().st_size
+                size_str   = f"{size_bytes / 1_073_741_824:.2f} GB" if size_bytes >= 1_073_741_824 else f"{size_bytes / 1_048_576:.1f} MB"
+                st.info(f"Raw hourly IV saved to `{raw_path}` ({size_str})")
 
 # ---------------------------------------------------------------------------
 # Re-filter IV spikes from local data (no API call needed)
