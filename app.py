@@ -60,16 +60,10 @@ with st.sidebar:
     dl_stock_trades   = st.checkbox("Stock Trades (tick-level)", value=False,
         help="Every stock trade tick, downloaded month by month.")
 
-    st.subheader("IV Spike Detection")
-    dl_iv_spikes = st.checkbox("Detect IV spikes", value=False,
-        help="Download hourly IV for all contracts and find days with large IV moves.")
-    spike_pct = st.number_input(
-        "Spike threshold (percentage points)",
-        min_value=1.0, max_value=100.0, value=7.0, step=0.5,
-        disabled=not dl_iv_spikes,
-        help="Flag any day where IV moved this many pp intraday (e.g. 7 = 25%→32%).",
-    )
-    spike_threshold = spike_pct / 100.0
+    st.subheader("Greeks")
+    dl_iv_spikes = st.checkbox("Hourly IV", value=False,
+        help="Download hourly implied volatility for all contracts.")
+    spike_threshold = 0.0
 
     st.subheader("Resume / Fresh start")
     force_fresh = st.checkbox(
