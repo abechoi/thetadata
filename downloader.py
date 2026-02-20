@@ -426,6 +426,11 @@ def download_iv_spikes(
         for f in [out_spikes, out_raw, ckpt]:
             if f.exists(): f.unlink()
 
+    # If the raw output is missing but a checkpoint exists, the previous run
+    # was interrupted after the files were cleared — reset so we re-download.
+    if not out_raw.exists() and ckpt.exists():
+        _ckpt_clear(ckpt)
+
     completed   = _ckpt_load(ckpt)
     total_steps = len(expirations) * 12
     step        = 0
@@ -499,4 +504,4 @@ def download_iv_spikes(
     if progress_cb:
         progress_cb(total_steps, total_steps, "Done")
     _ckpt_clear(ckpt)
-    return out_spikes if out_spikes.exists() else None
+    return out_raw if out_raw.exists() else None

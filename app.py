@@ -207,7 +207,7 @@ with col_download:
                         force_fresh=force_fresh, progress_cb=cb)
 
                 elif task == "iv_spikes":
-                    results["IV Spikes"] = dl.download_iv_spikes(
+                    results["Hourly IV"] = dl.download_iv_spikes(
                         symbol, year, output_dir, expirations,
                         spike_threshold=spike_threshold,
                         force_fresh=force_fresh, progress_cb=cb)
@@ -231,19 +231,9 @@ with col_download:
                 rows       = sum(1 for _ in open(path)) - 1
                 st.success(f"**{label}** → `{path}`  ({rows:,} rows, {size_str})")
 
-                if label == "IV Spikes":
-                    import pandas as pd
-                    preview = pd.read_csv(path).sort_values("iv_swing", ascending=False).head(10)
-                    st.dataframe(preview, use_container_width=True)
             else:
                 st.warning(f"**{label}** — no data returned (check plan or symbol).")
 
-        if dl_iv_spikes:
-            raw_path = output_dir / symbol / str(year) / "iv_hourly.csv"
-            if raw_path.exists():
-                size_bytes = raw_path.stat().st_size
-                size_str   = f"{size_bytes / 1_073_741_824:.2f} GB" if size_bytes >= 1_073_741_824 else f"{size_bytes / 1_048_576:.1f} MB"
-                st.info(f"Raw hourly IV saved to `{raw_path}` ({size_str})")
 
 # ---------------------------------------------------------------------------
 # Re-filter IV spikes from local data (no API call needed)
