@@ -1,0 +1,24 @@
+# Credentials — never commit
+creds.txt
+
+# Downloaded data
+data/
+
+# ThetaData terminal (download from thetadata.net)
+ThetaTerminalv3.jar
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# macOS
+.DS_Store
+
+# Java libs
+lib/
