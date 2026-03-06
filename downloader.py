@@ -19,6 +19,19 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 BASE_URL = "http://127.0.0.1:25503/v3"
+RUN_ID = f"td-{int(time.time())}"
+
+
+def _log_event(level: str, event: str, **fields) -> None:
+    payload = {
+        "ts": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "run_id": RUN_ID,
+        "event": event,
+        **fields,
+    }
+    line = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+    log_fn = getattr(logger, level, logger.info)
+    log_fn(line)
 
 
 class PlanError(Exception):
@@ -85,26 +98,26 @@ def _get(endpoint: str, params: dict) -> Optional[pd.DataFrame]:
                 return pd.read_csv(StringIO(text))
 
             elif r.status_code in (404, 472, 473):
-                logger.debug("HTTP %s from %s — %s", r.status_code, url, r.text[:200])
+                _log_event("info", "http_no_data", status=r.status_code, url=url, detail=r.text[:200])
                 return None
 
             elif r.status_code in (403, 470):
-                logger.warning("HTTP %s from %s — %s (continuing)", r.status_code, url, r.text.strip()[:200])
+                _log_event("warning", "http_plan_or_forbidden", status=r.status_code, url=url, detail=r.text.strip()[:200])
                 return None
 
             elif r.status_code in (400, 471):
-                logger.error("HTTP %s from %s: %s", r.status_code, url, r.text[:200])
+                _log_event("error", "http_permanent", status=r.status_code, url=url, detail=r.text[:200])
                 return None
 
             elif r.status_code in (429, 474):
                 backoff = min(BACKOFF_BASE * (2 ** attempt), BACKOFF_MAX) + random.uniform(0, 0.2)
-                logger.warning("HTTP %s transient error — sleeping %.2fs", r.status_code, backoff)
+                _log_event("warning", "http_transient", status=r.status_code, url=url, backoff=round(backoff,3), attempt=attempt+1)
                 time.sleep(backoff)
                 continue
 
             else:
                 backoff = min(BACKOFF_BASE * (2 ** attempt), BACKOFF_MAX) + random.uniform(0, 0.2)
-                logger.warning("HTTP %s from %s (retrying in %.2fs): %s", r.status_code, url, backoff, r.text[:200])
+                _log_event("warning", "http_retry", status=r.status_code, url=url, backoff=round(backoff,3), attempt=attempt+1, detail=r.text[:200])
                 time.sleep(backoff)
                 continue
 
@@ -112,16 +125,16 @@ def _get(endpoint: str, params: dict) -> Optional[pd.DataFrame]:
             raise
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.RequestException) as exc:
             backoff = min(BACKOFF_BASE * (2 ** attempt), BACKOFF_MAX) + random.uniform(0, 0.2)
-            logger.warning("Transient request error on attempt %d — %s (sleep %.2fs)", attempt + 1, exc, backoff)
+            _log_event("warning", "request_exception", attempt=attempt+1, error=str(exc), backoff=round(backoff,3), url=url)
             time.sleep(backoff)
             continue
         except Exception as exc:
-            logger.error("Unexpected error: %s", exc)
+            _log_event("error", "unexpected_exception", error=str(exc), url=url)
             return None
 
         time.sleep(REQUEST_DELAY)
 
-    logger.error("Giving up after %d attempts: %s", MAX_RETRIES, url)
+    _log_event("error", "give_up", attempts=MAX_RETRIES, url=url)
     return None
 
 
