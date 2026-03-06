@@ -17,6 +17,12 @@ import requests
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+if not logger.handlers:
+    _h = logging.StreamHandler()
+    _h.setFormatter(logging.Formatter('%(message)s'))
+    logger.addHandler(_h)
+logger.setLevel(logging.INFO)
+logger.propagate = False
 
 BASE_URL = "http://127.0.0.1:25503/v3"
 RUN_ID = f"td-{int(time.time())}"
