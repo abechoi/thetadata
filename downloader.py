@@ -5,8 +5,10 @@ Terminal must be running at http://127.0.0.1:25503 before use.
 
 import json
 import time
+import random
 import calendar
 import logging
+from datetime import date, datetime, timedelta
 from io import StringIO
 from pathlib import Path
 from typing import Callable, Optional
@@ -22,7 +24,9 @@ BASE_URL = "http://127.0.0.1:25503/v3"
 class PlanError(Exception):
     """Raised when ThetaData returns 470 (endpoint not included in plan)."""
 REQUEST_DELAY = 0.15   # seconds between requests
-MAX_RETRIES = 4
+MAX_RETRIES = 5
+BACKOFF_BASE = 0.1
+BACKOFF_MAX = 5.0
 
 ProgressCB = Callable[[int, int, str], None]  # (current, total, label)
 
@@ -38,6 +42,28 @@ def check_terminal() -> bool:
         return r.status_code in (200, 472)  # 472 = no data but terminal is up
     except requests.exceptions.ConnectionError:
         return False
+
+
+def _parse_date(value: str) -> date:
+    return datetime.strptime(value, "%Y-%m-%d").date()
+
+
+def _month_windows(start_date: str, end_date: str) -> list[tuple[str, str]]:
+    """Split [start_date, end_date] into <=31-day windows aligned by calendar month."""
+    start = _parse_date(start_date)
+    end = _parse_date(end_date)
+    if end < start:
+        return []
+
+    windows: list[tuple[str, str]] = []
+    cur = start
+    while cur <= end:
+        last_day = calendar.monthrange(cur.year, cur.month)[1]
+        month_end = date(cur.year, cur.month, last_day)
+        win_end = min(month_end, end, cur + timedelta(days=30))
+        windows.append((cur.isoformat(), win_end.isoformat()))
+        cur = win_end + timedelta(days=1)
+    return windows
 
 
 def _get(endpoint: str, params: dict) -> Optional[pd.DataFrame]:
@@ -58,29 +84,37 @@ def _get(endpoint: str, params: dict) -> Optional[pd.DataFrame]:
                     return None
                 return pd.read_csv(StringIO(text))
 
-            elif r.status_code == 429:
-                wait = 2 ** attempt
-                logger.warning("Rate limited — sleeping %ds", wait)
-                time.sleep(wait)
-                continue
-
             elif r.status_code in (404, 472, 473):
                 logger.debug("HTTP %s from %s — %s", r.status_code, url, r.text[:200])
                 return None
 
             elif r.status_code in (403, 470):
-                msg = f"Plan restriction (HTTP {r.status_code}) for {endpoint}: {r.text.strip()}"
-                logger.error(msg)
-                raise PlanError(msg)
+                logger.warning("HTTP %s from %s — %s (continuing)", r.status_code, url, r.text.strip()[:200])
+                return None
 
-            else:
+            elif r.status_code in (400, 471):
                 logger.error("HTTP %s from %s: %s", r.status_code, url, r.text[:200])
                 return None
 
+            elif r.status_code in (429, 474):
+                backoff = min(BACKOFF_BASE * (2 ** attempt), BACKOFF_MAX) + random.uniform(0, 0.2)
+                logger.warning("HTTP %s transient error — sleeping %.2fs", r.status_code, backoff)
+                time.sleep(backoff)
+                continue
+
+            else:
+                backoff = min(BACKOFF_BASE * (2 ** attempt), BACKOFF_MAX) + random.uniform(0, 0.2)
+                logger.warning("HTTP %s from %s (retrying in %.2fs): %s", r.status_code, url, backoff, r.text[:200])
+                time.sleep(backoff)
+                continue
+
         except PlanError:
             raise
-        except requests.exceptions.Timeout:
-            logger.warning("Timeout on attempt %d — %s", attempt + 1, url)
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.RequestException) as exc:
+            backoff = min(BACKOFF_BASE * (2 ** attempt), BACKOFF_MAX) + random.uniform(0, 0.2)
+            logger.warning("Transient request error on attempt %d — %s (sleep %.2fs)", attempt + 1, exc, backoff)
+            time.sleep(backoff)
+            continue
         except Exception as exc:
             logger.error("Unexpected error: %s", exc)
             return None
@@ -193,30 +227,32 @@ def download_options_eod(
     rows_written = 0
 
     for i, exp in enumerate(expirations):
-        if exp in completed:
-            if progress_cb:
-                progress_cb(i + 1, len(expirations), f"Skip (done)  {exp}")
-            continue
+        windows = _month_windows(f"{year}-01-01", exp)
 
         if progress_cb:
-            progress_cb(i, len(expirations), f"EOD  {exp}")
+            progress_cb(i, len(expirations), f"EOD  {exp} ({len(windows)} windows)")
 
-        df = _get("/option/history/eod", {
-            "symbol": symbol,
-            "expiration": exp,
-            "start_date": f"{year}-01-01",
-            "end_date": exp,
-            "strike": "*",
-            "right": "both",
-        })
+        for w_start, w_end in windows:
+            key = f"{exp}|{w_start}|{w_end}"
+            if key in completed:
+                continue
 
-        if df is not None and not df.empty:
-            _save(df, out)
-            rows_written += len(df)
+            df = _get("/option/history/eod", {
+                "symbol": symbol,
+                "expiration": exp,
+                "start_date": w_start,
+                "end_date": w_end,
+                "strike": "*",
+                "right": "both",
+            })
 
-        completed.add(exp)
-        _ckpt_save(ckpt, completed)
-        time.sleep(REQUEST_DELAY)
+            if df is not None and not df.empty:
+                _save(df, out)
+                rows_written += len(df)
+
+            completed.add(key)
+            _ckpt_save(ckpt, completed)
+            time.sleep(REQUEST_DELAY)
 
     if progress_cb:
         progress_cb(len(expirations), len(expirations), "Done")
@@ -244,30 +280,34 @@ def download_options_trades(
     rows_written = 0
 
     for i, exp in enumerate(expirations):
-        if exp in completed:
-            if progress_cb:
-                progress_cb(i + 1, len(expirations), f"Skip (done)  {exp}")
-            continue
+        exp_start = f"{year}-01-01"
+        exp_end = exp
+        windows = _month_windows(exp_start, exp_end)
 
         if progress_cb:
-            progress_cb(i, len(expirations), f"Trades  {exp}")
+            progress_cb(i, len(expirations), f"Trades  {exp} ({len(windows)} windows)")
 
-        df = _get("/option/history/trade", {
-            "symbol": symbol,
-            "expiration": exp,
-            "start_date": f"{year}-01-01",
-            "end_date": exp,
-            "strike": "*",
-            "right": "both",
-        })
+        for w_start, w_end in windows:
+            key = f"{exp}|{w_start}|{w_end}"
+            if key in completed:
+                continue
 
-        if df is not None and not df.empty:
-            _save(df, out)
-            rows_written += len(df)
+            df = _get("/option/history/trade", {
+                "symbol": symbol,
+                "expiration": exp,
+                "start_date": w_start,
+                "end_date": w_end,
+                "strike": "*",
+                "right": "both",
+            })
 
-        completed.add(exp)
-        _ckpt_save(ckpt, completed)
-        time.sleep(REQUEST_DELAY)
+            if df is not None and not df.empty:
+                _save(df, out)
+                rows_written += len(df)
+
+            completed.add(key)
+            _ckpt_save(ckpt, completed)
+            time.sleep(REQUEST_DELAY)
 
     if progress_cb:
         progress_cb(len(expirations), len(expirations), "Done")
@@ -295,30 +335,32 @@ def download_options_open_interest(
     rows_written = 0
 
     for i, exp in enumerate(expirations):
-        if exp in completed:
-            if progress_cb:
-                progress_cb(i + 1, len(expirations), f"Skip (done)  {exp}")
-            continue
+        windows = _month_windows(f"{year}-01-01", exp)
 
         if progress_cb:
-            progress_cb(i, len(expirations), f"OI  {exp}")
+            progress_cb(i, len(expirations), f"OI  {exp} ({len(windows)} windows)")
 
-        df = _get("/option/history/open_interest", {
-            "symbol": symbol,
-            "expiration": exp,
-            "start_date": f"{year}-01-01",
-            "end_date": exp,
-            "strike": "*",
-            "right": "both",
-        })
+        for w_start, w_end in windows:
+            key = f"{exp}|{w_start}|{w_end}"
+            if key in completed:
+                continue
 
-        if df is not None and not df.empty:
-            _save(df, out)
-            rows_written += len(df)
+            df = _get("/option/history/open_interest", {
+                "symbol": symbol,
+                "expiration": exp,
+                "start_date": w_start,
+                "end_date": w_end,
+                "strike": "*",
+                "right": "both",
+            })
 
-        completed.add(exp)
-        _ckpt_save(ckpt, completed)
-        time.sleep(REQUEST_DELAY)
+            if df is not None and not df.empty:
+                _save(df, out)
+                rows_written += len(df)
+
+            completed.add(key)
+            _ckpt_save(ckpt, completed)
+            time.sleep(REQUEST_DELAY)
 
     if progress_cb:
         progress_cb(len(expirations), len(expirations), "Done")
