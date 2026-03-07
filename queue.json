@@ -1,0 +1,113 @@
+{
+  "active": true,
+  "auto_reload": true,
+  "symbols": [
+    {
+      "priority": 1,
+      "symbol": "AAPL",
+      "years": [
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ]
+    },
+    {
+      "priority": 1,
+      "symbol": "BNTX",
+      "years": [
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ]
+    },
+    {
+      "priority": 1,
+      "symbol": "META",
+      "years": [
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ]
+    },
+    {
+      "priority": 1,
+      "symbol": "MRNA",
+      "years": [
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ]
+    },
+    {
+      "priority": 1,
+      "symbol": "NFLX",
+      "years": [
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ]
+    },
+    {
+      "priority": 1,
+      "symbol": "NVDA",
+      "years": [
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ]
+    },
+    {
+      "priority": 1,
+      "symbol": "QQQ",
+      "years": [
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ]
+    },
+    {
+      "priority": 1,
+      "symbol": "SPY",
+      "years": [
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ]
+    },
+    {
+      "priority": 1,
+      "symbol": "TSLA",
+      "years": [
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ]
+    },
+    {
+      "priority": 2,
+      "symbol": "MSFT",
+      "years": [
+        2024,
+        2025
+      ]
+    }
+  ]
+}

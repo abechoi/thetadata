@@ -1,11 +1,33 @@
 # Credentials — never commit
 creds.txt
+*.key
+*.pem
+.env
+.env.*
 
 # Downloaded data
 data/
 
 # ThetaData terminal (download from thetadata.net)
 ThetaTerminalv3.jar
+
+# Logs and runtime files
+logs/
+*.log
+*.out
+*.err
+*.pid
+
+# State and cache files
+.cron_state/
+.cron_state*.json
+.inventory_cache/
+*_status.json
+*_state.json
+
+# Queue and inventory exports
+inventory_export.*
+queue_backup.json
 
 # Python
 .venv/
@@ -22,3 +44,10 @@ build/
 
 # Java libs
 lib/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

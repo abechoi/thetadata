@@ -22,15 +22,71 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
-## Running the app
+## Quick Start - Starting Services
 
 ```bash
-# Start ThetaData Terminal first, then:
+# Start everything (Terminal + Worker) with one command:
+./start.sh
+
+# Check status of services:
+./start.sh --status
+
+# Stop all services:
+./start.sh --stop
+
+# Or manually start:
+./scripts/start_thetadata_singleton.sh  # Starts terminal + worker
+
+# Or use interactive UI instead:
 .venv/bin/streamlit run app.py --server.fileWatcherType none
 ```
 
-The `--server.fileWatcherType none` flag prevents Streamlit from restarting the app
-if you edit code while a download is running.
+## Quick Command Reference
+
+### Live Monitoring
+```bash
+# Watch downloads in real-time with progress, ETA, and queue
+python3 monitor.py
+
+# Faster refresh rate (every 1 second)
+python3 monitor.py --refresh 1
+```
+
+### Queue Management
+```bash
+# Add symbols to download queue
+python3 queue_manager.py add MSFT --years 2024,2025 --priority 1
+python3 queue_manager.py add GOOGL --years 2024
+
+# View queue
+python3 queue_manager.py list
+python3 queue_manager.py status
+
+# Remove symbol
+python3 queue_manager.py remove MSFT
+
+# Pause/resume
+python3 queue_manager.py pause
+python3 queue_manager.py resume
+```
+
+### Inventory & Validation
+```bash
+# View all downloads
+python3 inventory.py summary
+python3 inventory.py list AAPL 2024
+
+# Find incomplete downloads
+python3 inventory.py gaps
+
+# Validate data integrity
+python3 inventory.py validate AAPL 2024
+
+# Export inventory
+python3 inventory.py export --format json
+```
+
+See [QUEUE_AND_INVENTORY_GUIDE.md](QUEUE_AND_INVENTORY_GUIDE.md) for detailed documentation.
 
 ## Features
 
