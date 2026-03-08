@@ -503,6 +503,8 @@ def download_iv_spikes(
     completed   = _ckpt_load(ckpt)
     total_steps = len(expirations) * 12
     step        = 0
+    consecutive_no_data = 0
+    NO_DATA_THRESHOLD = 10  # Skip rest if 10 consecutive 472s
 
     for exp in expirations:
         for month in range(1, 13):
@@ -532,6 +534,7 @@ def download_iv_spikes(
             })
 
             if df is not None and not df.empty:
+                consecutive_no_data = 0  # Reset counter on successful data
                 _save(df, out_raw)
 
                 ts_col = "timestamp" if "timestamp" in df.columns else df.columns[4]
@@ -565,10 +568,30 @@ def download_iv_spikes(
                         if "underlying_price_close" in spikes.columns:
                             cols.append("underlying_price_close")
                         _save(spikes[cols], out_spikes)
+            else:
+                # No data returned - increment counter
+                consecutive_no_data += 1
+                if consecutive_no_data >= NO_DATA_THRESHOLD:
+                    # No IV data available for this symbol - skip remaining requests
+                    if progress_cb:
+                        progress_cb(step, total_steps, f"No IV data - skipping rest")
+                    _log_event("info", "iv_skip", symbol=symbol, year=year,
+                              detail=f"Skipped after {consecutive_no_data} consecutive 472s")
+                    # Mark all remaining as complete to avoid retry
+                    for remaining_exp in expirations[expirations.index(exp):]:
+                        for remaining_month in range(month if remaining_exp == exp else 1, 13):
+                            remaining_key = f"{remaining_exp}_{remaining_month:02d}"
+                            completed.add(remaining_key)
+                    _ckpt_save(ckpt, completed)
+                    break
 
             completed.add(key)
             _ckpt_save(ckpt, completed)
             time.sleep(REQUEST_DELAY)
+
+        # Break outer loop if we hit threshold
+        if consecutive_no_data >= NO_DATA_THRESHOLD:
+            break
 
     if progress_cb:
         progress_cb(total_steps, total_steps, "Done")
