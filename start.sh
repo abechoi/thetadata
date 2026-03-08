@@ -185,11 +185,13 @@ start_services() {
     check_status
 
     print_green "\n✅ ThetaData is ready!"
-    print_yellow "\n💡 Useful commands:"
+    print_yellow "\n💡 Quick access:"
+    echo "   python3 menu.py                    # Interactive menu (easiest!)"
+    echo ""
+    print_yellow "   Or use commands directly:"
     echo "   python3 monitor.py                 # Live download dashboard"
     echo "   python3 queue_manager.py list      # View download queue"
     echo "   python3 inventory.py summary       # View downloaded data"
-    echo "   python3 inventory.py gaps          # Find incomplete downloads"
     echo "   tail -f logs/watchdog.log          # View watchdog logs"
     echo "   ./start.sh --status                # Check status"
     echo "   ./start.sh --stop                  # Stop services"

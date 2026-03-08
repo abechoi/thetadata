@@ -22,10 +22,23 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
-## Quick Start - Starting Services
+## Quick Start - Interactive Menu
 
 ```bash
-# Start everything (Terminal + Worker) with one command:
+# Launch interactive menu (easiest way - no commands to memorize!)
+python3 menu.py
+```
+
+The interactive menu gives you access to all features:
+- Queue management (add/remove symbols with smart defaults)
+- Service control (start/stop/restart/logs)
+- Live monitoring (real-time progress dashboard)
+- Inventory & validation (view downloads, find gaps)
+
+## Quick Start - Command Line
+
+```bash
+# Start everything (Terminal + Worker + Watchdog):
 ./start.sh
 
 # Check status of services:
@@ -34,10 +47,7 @@ python3 -m venv .venv
 # Stop all services:
 ./start.sh --stop
 
-# Or manually start:
-./scripts/start_thetadata_singleton.sh  # Starts terminal + worker
-
-# Or use interactive UI instead:
+# Or use interactive UI:
 .venv/bin/streamlit run app.py --server.fileWatcherType none
 ```
 
