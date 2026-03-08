@@ -86,6 +86,21 @@ python3 inventory.py validate AAPL 2024
 python3 inventory.py export --format json
 ```
 
+### Health Monitoring
+```bash
+# Run health check once (checks worker status, terminal response)
+python3 watchdog.py
+
+# Run as daemon (auto-restart if stuck, checks every 5 min)
+python3 watchdog.py --daemon &
+
+# The watchdog monitors:
+# - Worker process is running
+# - Status file is fresh (< 10 minutes old)
+# - Terminal API is responding
+# If any check fails, services are automatically restarted
+```
+
 See [QUEUE_AND_INVENTORY_GUIDE.md](QUEUE_AND_INVENTORY_GUIDE.md) for detailed documentation.
 
 ## Features

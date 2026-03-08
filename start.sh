@@ -44,6 +44,13 @@ check_status() {
         print_red "✗ Priority Worker: Not running"
     fi
 
+    # Check watchdog
+    if ps -Ao pid,command | grep -E '[Pp]ython(3)? .*watchdog\.py.*--daemon' > /dev/null 2>&1; then
+        print_green "✓ Watchdog: Running"
+    else
+        print_red "✗ Watchdog: Not running"
+    fi
+
     # Check API
     if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:25503/v3/stock/list/symbols?format=csv" | grep -q "200\|472"; then
         print_green "✓ API: Reachable (http://127.0.0.1:25503)"
@@ -62,7 +69,16 @@ check_status() {
 stop_services() {
     print_yellow "\n🛑 Stopping ThetaData Services...\n"
 
-    # Stop worker first
+    # Stop watchdog first (so it doesn't auto-restart while we're stopping)
+    watchdog_pids=$(ps -Ao pid,command | grep -E '[Pp]ython.*watchdog\.py.*--daemon' | awk '{print $1}')
+    if [ ! -z "$watchdog_pids" ]; then
+        print_yellow "Stopping watchdog (PIDs: $watchdog_pids)..."
+        echo "$watchdog_pids" | xargs kill -TERM 2>/dev/null || true
+        sleep 1
+        print_green "✓ Watchdog stopped"
+    fi
+
+    # Stop worker
     worker_pids=$(ps -Ao pid,command | grep -E '[Pp]ython.*priority_backlog_worker\.py' | awk '{print $1}')
     if [ ! -z "$worker_pids" ]; then
         print_yellow "Stopping worker (PIDs: $worker_pids)..."
@@ -160,6 +176,11 @@ start_services() {
     # Wait a moment for services to initialize
     sleep 2
 
+    # Start watchdog in daemon mode
+    mkdir -p logs
+    nohup python3 watchdog.py --daemon > logs/watchdog.log 2>&1 &
+    print_green "✓ Watchdog started (auto-restart if stuck)"
+
     # Show status
     check_status
 
@@ -169,6 +190,7 @@ start_services() {
     echo "   python3 queue_manager.py list      # View download queue"
     echo "   python3 inventory.py summary       # View downloaded data"
     echo "   python3 inventory.py gaps          # Find incomplete downloads"
+    echo "   tail -f logs/watchdog.log          # View watchdog logs"
     echo "   ./start.sh --status                # Check status"
     echo "   ./start.sh --stop                  # Stop services"
     echo ""
